@@ -1,0 +1,89 @@
+load('TrainingSamplesDCT_subsets_8.mat')
+load('Prior_1.mat')
+load("Alpha.mat")
+img = imread('cheetah.bmp');
+
+
+
+
+
+
+%% Part a
+
+% Preallocate storage for Sigma_0 matrices
+num_alphas = length(alpha);  % Number of alpha values
+%Sigma_0_all = cell(num_alphas, 1);  % Store Sigma_0 for each alpha
+sigma_idx = 2;
+
+Sigma_0 = alpha(alpha_ind) * diag(W0(subset));
+
+
+Train_FG = D4_FG;
+Train_BG = D4_BG;
+
+FG_sample_mean = mean(Train_FG,1);
+FG_sample_cov = cov(Train_FG,1);
+BG_sample_mean = mean(Train_BG,1);
+BG_sample_cov = cov(Train_BG,1);
+
+N = size(Train_FG,1);
+FG_Sigma_0 = alpha(alpha_ind) * diag(W0(subset));
+
+x = inv((FG_Sigma_0+ (1/N)*FG_sample_cov));
+FG_posterior_mean = FG_Sigma_0* x * FG_sample_mean'+ (1/N)*FG_Sigma_0* x *mu0_FG';
+
+FG_posterior_sigma = FG_Sigma_0 * x * FG_sample_cov /N + FG_sample_cov;
+FG_Bayes_covinv = inv(FG_posterior_sigma);
+log_FG_det = sum(log(eig(FG_Bayes_covinv)));
+
+
+
+
+N = size(Train_BG,1);
+BG_Sigma_0 = alpha(alpha_ind) * diag(W0(subset));
+
+x = inv((BG_Sigma_0+ (1/N)*BG_sample_cov));
+BG_posterior_mean = BG_Sigma_0* x * BG_sample_mean'+ (1/N)*BG_Sigma_0* x *mu0_BG';
+
+BG_posterior_sigma = BG_Sigma_0 * x * BG_sample_cov /N + BG_sample_cov;
+BG_Bayes_covinv = inv(BG_posterior_sigma);
+log_BG_det = sum(log(eig(BG_Bayes_covinv)));
+
+N_FG = size(Train_FG,1);
+N_BG = size(Train_BG,1);
+Total = N_FG + B_FG;
+P_FG = N_FG/total;
+P_BG = N_BG/total; 
+
+
+%% descision 
+
+%% Classification part for 64 Gaussians 
+img = imread('cheetah.bmp');
+[numRows, numCols] = size(img);
+Img_decision = zeros(numRows, numCols);
+cnt = 1; 
+for i = 1:numRows 
+    for j = 1:numCols
+        logPxgivenCheeta = 0;
+        logPxgivenGrass = 0;
+        for s = 1:64
+            x = Data_array(cnt, s);
+            diff_cheeta = (x - FG_posterior_mean);
+            logPxgivenCheeta = logPxgivenCheeta + (-1/2)*diff_cheeta'*FG_Bayes_covinv*diff_cheeta- (1/2)*log_FG_det;
+            logPxgivenGrass = logPxgivenGrass + likliehood_BG(mu_grass, cov_grass, s, x);
+        end
+        PCheetagivenX = exp(logPxgivenCheeta + log(P_FG));
+        PGrassgivenX = exp(logPxgivenGrass + log(P_BG));
+        
+        Img_decision(i,j) = PCheetagivenX >= PGrassgivenX;
+        cnt = cnt + 1;
+    end
+end
+
+
+
+
+
+
+
